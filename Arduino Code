@@ -1,0 +1,287 @@
+// Armdino --- Fun with Arduino // Arduino and IR Remote Control ---
+// Playlist: https://www.youtube.com/playlist?list=PLRFnGJH1nJiJxoO0woBW6vl_8URTQPhfL
+// Playlist 2: https://www.youtube.com/playlist?list=PLRFnGJH1nJiKt3vummeCxtmMURbCe37ep
+//
+// DIY - MP3 Player with IR Remote Controlled by Arduino
+// Video Demo That I Followed: https://www.youtube.com/watch?v=a_ERaJMzSgM
+
+#include <SoftwareSerial.h>
+#include <IRremote.h>
+#include <Servo.h>
+
+# define Start_Byte     0x7E
+# define Version_Byte   0xFF
+# define Command_Length 0x06
+# define End_Byte       0xEF
+# define Acknowledge    0x00
+//--------------------------------------------------------//
+// REPLACE THESE HEX CODES WITH YOUR REMOTE BUTTON CODES
+# define pause_play       0xFF18E7
+# define next_song        0xFF7A85
+# define prev_song        0xFF30CF
+# define vol_inc          0xFF9867
+# define vol_dec          0xFF38C7  
+# define sound_equalizer  0xFF629D
+
+# define mode_A           0xFF22DD // A button
+# define mode_B           0xFF02FD // B button
+# define mode_C           0xFFC23D // C button
+# define power            0xFF629D
+//-------------------------------------------------------//
+
+SoftwareSerial mySerial(10,11);
+
+const int receiver = A0;
+IRrecv irrecv(receiver);    // create instance of 'irrecv'
+decode_results dec;         // create instance of 'decode_results'
+
+int volume = 20;
+int eqset = 0;
+boolean Playing = true;
+boolean lights = false;
+boolean spin = false;
+
+//my aditions ********************
+
+      int ledOne = 6;
+      int ledTwo = 7;
+      int ledThree = 8;
+      int ledFour = 12;
+      int ledFive = 13;
+      
+      int randLed;
+      
+      Servo myservo; 
+      int pos = 0;
+
+//*********************************
+
+void setup () 
+{
+  Serial.begin(9600);
+  Serial.println("IR Receiver Button Decode");
+  
+  irrecv.enableIRIn();      // Start the receiver
+  mySerial.begin(9600);
+  delay(1000);
+  playFirst();
+  Playing = true;
+  boolean lights = false;
+  boolean spin = false;
+
+
+
+//my aditions ********************
+
+      pinMode(ledOne, OUTPUT);
+      pinMode(ledTwo, OUTPUT);
+      pinMode(ledThree, OUTPUT);
+      pinMode(ledFour, OUTPUT);
+      pinMode(ledFive, OUTPUT);
+    
+      myservo.attach(3);
+
+//*********************************
+  
+}
+
+void loop () 
+{  
+  if(irrecv.decode(&dec))
+  {
+    Serial.println(dec.value, HEX); // Here you can get your remote's buttons codes
+    if (dec.value==power)
+    {
+      onOff ();
+    }
+    if (dec.value==pause_play)
+    {
+      if(Playing)
+      {
+        pause();
+        Playing = false;
+      }
+      else
+      {
+        Playing = true;
+        play();
+      }
+    }
+    if (dec.value==next_song)
+    {
+      if(Playing)
+      {
+        next();
+      }
+    }
+    if (dec.value==prev_song)
+    {
+      if(Playing)
+      {
+        previous();
+      }
+    }
+    if (dec.value==vol_inc)
+    {
+     volumeINC(); 
+    }
+    if (dec.value==vol_dec)
+    {
+      volumeDEC();
+    }
+    if (dec.value==sound_equalizer)
+    {
+      equalizer();
+    }
+    if (dec.value==mode_A)
+    {
+      ledOff();
+      servoStop();
+    }
+    if (dec.value==mode_B)
+    {
+      ledOn();
+    }
+    if (dec.value==mode_C)
+    {
+      servoTurn();
+    }
+    irrecv.resume();
+  }
+  
+}
+
+void onOff ()
+{
+  if (Playing == true || lights == true || spin == true) {
+    pause ();
+    Playing = false;
+    servoStop ();
+    ledOff();
+  }
+  else {
+    play();
+    Playing = true;
+  }
+}
+
+void servoStop()
+{
+  pos = 0;
+  spin = false;
+
+}
+
+void servoTurn()
+{   
+  for (pos = 0; pos <180; pos += 1) { // goes from 0 degrees to 180 degrees
+    myservo.write(pos);              // tell servo to go to position in variable 'pos'
+    delay (50);
+    }
+    for (pos = 180; pos >0 ; pos -= 1) { // goes from 0 degrees to 180 degrees
+    myservo.write(pos);              // tell servo to go to position in variable 'pos'
+    delay (50);
+    }
+    spin = true;
+
+}
+
+void ledOn()
+{
+  digitalWrite(ledOne, HIGH);
+  digitalWrite(ledTwo, HIGH);
+  digitalWrite(ledThree, HIGH);
+  digitalWrite(ledFour, HIGH);
+  digitalWrite(ledFive, HIGH);
+  lights = true;
+
+}
+
+void ledOff()
+{
+  digitalWrite(ledOne, LOW);
+  digitalWrite(ledTwo, LOW);
+  digitalWrite(ledThree, LOW);
+  digitalWrite(ledFour, LOW);
+  digitalWrite(ledFive, LOW);
+  lights = false;
+
+}
+
+void playFirst()
+{
+  exe_cmd(0x3F, 0, 0);
+  delay(100);
+  exe_cmd(0x06, 0, volume); 
+  delay(100);
+  exe_cmd(0x11,0,1); 
+  delay(100);
+}
+
+void pause()
+{
+  exe_cmd(0x0E,0,0);
+  delay(100);
+}
+
+void play()
+{
+  exe_cmd(0x0D,0,1); 
+  delay(100);
+}
+
+void next()
+{
+  exe_cmd(0x01,0,1);
+  delay(100);
+}
+
+void previous()
+{
+  exe_cmd(0x02,0,1);
+  delay(100);
+}
+
+void volumeINC()
+{
+  volume = volume+1;
+  if(volume == 31)
+  {
+    volume = 30;
+  }
+  exe_cmd(0x06, 0, volume); 
+  delay(100);
+}
+
+void volumeDEC()
+{
+  volume = volume-1;
+  if(volume == -1)
+  {
+    volume = 0;
+  }
+  exe_cmd(0x06, 0, volume); 
+  delay(100);
+}
+
+void equalizer()
+{
+  eqset = eqset+1;
+  if(eqset == 6)
+  {
+    eqset = 0;
+  }
+  exe_cmd(0x07, 0, eqset);
+  delay(100);
+}
+
+void exe_cmd(byte CMD, byte Par1, byte Par2)
+{
+  word checksum = -(Version_Byte + Command_Length + CMD + Acknowledge + Par1 + Par2);
+  byte Command_line[10] = {Start_Byte, Version_Byte, Command_Length, CMD, Acknowledge,
+                            Par1, Par2, highByte(checksum), lowByte(checksum), End_Byte};
+  for (byte x=0; x<10; x++)
+  {
+    mySerial.write(Command_line[x]);
+  }
+}
